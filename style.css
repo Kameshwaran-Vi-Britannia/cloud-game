@@ -1,19 +1,22 @@
 body {
-  font-family: Arial;
-  text-align: center;
-  background: #0f172a;
+  font-family: Arial, sans-serif;
+  background: #222;
   color: white;
+  text-align: center;
+  margin: 0;
+  padding: 0;
 }
 
-button {
-  padding: 10px 15px;
-  margin: 5px;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
+canvas {
+  background: #000;
+  margin: 10px auto;
+  display: block;
+  border: 2px solid #555;
 }
 
-input {
+input, button {
   padding: 8px;
   margin: 5px;
+  border-radius: 5px;
+  border: none;
 }
