@@ -1,27 +1,76 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Cloud Dodge</title>
-  <link rel="stylesheet" href="style.css">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Cloud Dodge — Cloud Game</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
-  <h1>☁️ Cloud Dodge</h1>
+  <header>
+    <h1>☁️ Cloud Dodge</h1>
+    <p class="sub">Dodge falling blocks • Save high scores to the cloud</p>
+  </header>
 
-  <input type="email" id="email" placeholder="Enter email">
-  <button onclick="startGame()">Start Game</button>
+  <main>
+    <!-- AUTH AREA -->
+    <section id="authCard" class="card">
+      <h2>Sign up / Login</h2>
+      <input id="email" type="email" placeholder="Email" autocomplete="username" />
+      <input id="password" type="password" placeholder="Password" autocomplete="current-password" />
+      <div class="row">
+        <button id="btnSignUp">Create account</button>
+        <button id="btnLogin">Login</button>
+      </div>
+      <p id="authMsg" class="muted"></p>
+    </section>
 
-  <canvas id="gameCanvas" width="300" height="400"></canvas>
+    <!-- GAMER NAME ENTRY (hidden until login) -->
+    <section id="nameCard" class="card" style="display:none;">
+      <h2>Welcome</h2>
+      <p id="welcomeEmail" class="muted"></p>
+      <input id="gamerName" type="text" placeholder="Choose a gamer name (shown on leaderboard)" />
+      <div class="row">
+        <button id="btnSetName">Set Name</button>
+        <button id="btnLogout">Logout</button>
+      </div>
+    </section>
 
-  <div id="mobileControls">
-    <button onclick="moveLeft()">⬅</button>
-    <button onclick="moveRight()">➡</button>
-  </div>
+    <!-- GAME AREA -->
+    <section id="gameCard" class="card" style="display:none;">
+      <div class="game-top-row">
+        <div class="score-box">Score: <span id="scoreDisplay">0</span></div>
+        <button id="btnStart" class="accent">Start</button>
+      </div>
 
-  <h2>🏆 Leaderboard</h2>
-  <ul id="leaderboard"></ul>
+      <canvas id="gameCanvas" width="360" height="480" aria-label="Game canvas"></canvas>
 
-  <script type="module" src="script.js"></script>
+      <!-- Mobile controls -->
+      <div id="mobileControls">
+        <button id="leftBtn">⬅</button>
+        <button id="rightBtn">➡</button>
+      </div>
 
+      <p id="gameMsg" class="muted"></p>
+    </section>
+
+    <!-- LEADERBOARD -->
+    <section id="boardCard" class="card leaderboard-card">
+      <h2>🏆 Leaderboard</h2>
+      <ol id="leaderboard"></ol>
+      <p class="muted small">Top players (email shown for verification)</p>
+    </section>
+  </main>
+
+  <footer class="foot muted">Built with Firebase • Hosted on GitHub Pages</footer>
+
+  <!-- Firebase compat SDKs (works with this script style) -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+  <!-- Main script -->
+  <script src="script.js"></script>
 </body>
 </html>
