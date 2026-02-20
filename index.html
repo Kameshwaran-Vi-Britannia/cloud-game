@@ -1,35 +1,27 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8">
-  <title>Cloud Dodge Game</title>
+  <title>Cloud Dodge</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<h1>☁️ Cloud Dodge</h1>
+  <h1>☁️ Cloud Dodge</h1>
 
-<div id="auth">
-  <input type="email" id="email" placeholder="Email">
-  <input type="password" id="password" placeholder="Password">
-  <button onclick="signUp()">Sign Up</button>
-  <button onclick="login()">Login</button>
-</div>
-
-<div id="gameArea" style="display:none;">
-  <canvas id="gameCanvas" width="300" height="400"></canvas>
-  <p>Score: <span id="scoreDisplay">0</span></p>
+  <input type="email" id="email" placeholder="Enter email">
   <button onclick="startGame()">Start Game</button>
-</div>
 
-<h2>🏆 Leaderboard</h2>
-<ul id="leaderboard"></ul>
+  <canvas id="gameCanvas" width="300" height="400"></canvas>
 
-<!-- Firebase -->
-<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
+  <div id="mobileControls">
+    <button onclick="moveLeft()">⬅</button>
+    <button onclick="moveRight()">➡</button>
+  </div>
 
-<script src="script.js"></script>
+  <h2>🏆 Leaderboard</h2>
+  <ul id="leaderboard"></ul>
+
+  <script type="module" src="script.js"></script>
+
 </body>
 </html>
