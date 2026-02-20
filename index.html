@@ -1,37 +1,35 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Cloud Game</title>
+  <meta charset="UTF-8">
+  <title>Cloud Dodge Game</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-  <h1>☁️ Cloud Score Game</h1>
+<h1>☁️ Cloud Dodge</h1>
 
-  <div id="login">
-    <input type="email" id="email" placeholder="Email">
-    <input type="password" id="password" placeholder="Password">
-    <button onclick="signUp()">Sign Up</button>
-    <button onclick="login()">Login</button>
-  </div>
+<div id="auth">
+  <input type="email" id="email" placeholder="Email">
+  <input type="password" id="password" placeholder="Password">
+  <button onclick="signUp()">Sign Up</button>
+  <button onclick="login()">Login</button>
+</div>
 
-  <div id="game" style="display:none;">
-    <p>Score: <span id="score">0</span></p>
-    <button onclick="increaseScore()">Click Me 🚀</button>
-    <button onclick="saveScore()">Save Score</button>
-  </div>
+<div id="gameArea" style="display:none;">
+  <canvas id="gameCanvas" width="300" height="400"></canvas>
+  <p>Score: <span id="scoreDisplay">0</span></p>
+  <button onclick="startGame()">Start Game</button>
+</div>
 
-  <div id="leaderboard">
-    <h2>🏆 Leaderboard</h2>
-    <ul id="scoresList"></ul>
-  </div>
+<h2>🏆 Leaderboard</h2>
+<ul id="leaderboard"></ul>
 
-  <!-- Firebase SDK -->
-  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js"></script>
 
-  <script src="script.js"></script>
-
+<script src="script.js"></script>
 </body>
 </html>
