@@ -1,137 +1,141 @@
-// 🔥 Your Firebase Config Here
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getFirestore, collection, addDoc, getDocs, query, orderBy, limit } 
+from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
 const firebaseConfig = {
   apiKey: "AIzaSyCm6a9GLHaZ_kVdPQtYZFoArFxNprY07cA",
   authDomain: "cloudgame-a1fcd.firebaseapp.com",
   projectId: "cloudgame-a1fcd",
-  storageBucket: "cloudgame-a1fcd.appspot.com",
+  storageBucket: "cloudgame-a1fcd.firebasestorage.app",
   messagingSenderId: "952588137359",
   appId: "1:952588137359:web:41c9773652bc2d0f34d1fa"
 };
 
-// Initialize Firebase
-firebase.initializeApp(firebaseConfig);
-const auth = firebase.auth();
-const db = firebase.firestore();
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
 
-// ----------------------------------
-// Authentication
-// ----------------------------------
-function signUp() {
-  const email = document.getElementById("email").value;
-  const password = document.getElementById("password").value;
-  auth.createUserWithEmailAndPassword(email, password)
-      .then(() => alert("Account created!"))
-      .catch(err => alert(err.message));
-}
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
 
-function login() {
-  const email = document.getElementById("email").value;
-  const password = document.getElementById("password").value;
-  auth.signInWithEmailAndPassword(email, password)
-      .then(() => {
-        document.getElementById("auth").style.display = "none";
-        document.getElementById("gameArea").style.display = "block";
-        loadLeaderboard();
-      })
-      .catch(err => alert(err.message));
-}
-
-// ----------------------------------
-// Game Logic
-// ----------------------------------
-let canvas = document.getElementById("gameCanvas");
-let ctx = canvas.getContext("2d");
-let player = {x:130, y:350, w:40, h:40};
+let player = { x: 130, y: 360, size: 20 };
 let obstacles = [];
 let score = 0;
-let gameInterval, obsInterval;
+let gameRunning = false;
+let userEmail = "";
 
-function startGame() {
-  obstacles = [];
-  score = 0;
-  document.getElementById("scoreDisplay").innerText = score;
-  clearInterval(gameInterval);
-  clearInterval(obsInterval);
+function drawPlayer() {
+  ctx.fillStyle = "cyan";
+  ctx.fillRect(player.x, player.y, player.size, player.size);
+}
 
-  gameInterval = setInterval(gameLoop, 20);
-  obsInterval = setInterval(createObstacle, 1000);
+function drawObstacles() {
+  ctx.fillStyle = "red";
+  obstacles.forEach(o => ctx.fillRect(o.x, o.y, o.size, o.size));
+}
+
+function updateObstacles() {
+  obstacles.forEach(o => o.y += 3);
+
+  if (Math.random() < 0.02) {
+    obstacles.push({
+      x: Math.random() * 280,
+      y: 0,
+      size: 20
+    });
+  }
+
+  obstacles = obstacles.filter(o => o.y < 400);
+}
+
+function detectCollision() {
+  for (let o of obstacles) {
+    if (
+      player.x < o.x + o.size &&
+      player.x + player.size > o.x &&
+      player.y < o.y + o.size &&
+      player.y + player.size > o.y
+    ) {
+      endGame();
+    }
+  }
 }
 
 function gameLoop() {
-  ctx.clearRect(0,0,300,400);
+  if (!gameRunning) return;
 
-  // draw player
-  ctx.fillStyle = "cyan";
-  ctx.fillRect(player.x, player.y, player.w, player.h);
+  ctx.clearRect(0, 0, 300, 400);
 
-  // obstacles
-  obstacles.forEach((obs, index) => {
-    obs.y += 2;
-    ctx.fillStyle = "red";
-    ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
+  drawPlayer();
+  drawObstacles();
+  updateObstacles();
+  detectCollision();
 
-    if (obs.y > 400) {
-      obstacles.splice(index,1);
-      score++;
-      document.getElementById("scoreDisplay").innerText = score;
-    }
+  score++;
+  ctx.fillStyle = "white";
+  ctx.fillText("Score: " + score, 10, 20);
 
-    if (collision(player, obs)) {
-      endGame();
-    }
-  });
+  requestAnimationFrame(gameLoop);
 }
 
-function createObstacle() {
-  let xPos = Math.random() * 260;
-  obstacles.push({x: xPos, y:0, w:40, h:40});
-}
+window.startGame = function () {
+  const emailInput = document.getElementById("email").value;
 
-function collision(a, b) {
-  return !(a.x + a.w < b.x || a.x > b.x + b.w || a.y + a.h < b.y || a.y > b.y + b.h);
-}
+  if (!emailInput) {
+    alert("Enter email first 😌");
+    return;
+  }
 
-// move player
-document.onkeydown = function(e) {
-  if(e.key == "ArrowLeft" && player.x > 0) player.x -= 10;
-  if(e.key == "ArrowRight" && player.x < 260) player.x += 10;
-}
+  userEmail = emailInput;
+  obstacles = [];
+  score = 0;
+  gameRunning = true;
 
-// ----------------------------------
-// End & Save
-// ----------------------------------
+  gameLoop();
+};
+
 function endGame() {
-  clearInterval(gameInterval);
-  clearInterval(obsInterval);
+  gameRunning = false;
   saveScore();
 }
 
-function saveScore() {
-  const user = auth.currentUser;
-  if (!user) return;
+async function saveScore() {
+  await addDoc(collection(db, "scores"), {
+    email: userEmail,
+    score: score
+  });
 
-  db.collection("scores").add({
-    email: user.email,
-    score: score,
-    timestamp: Date.now()
-  }).then(() => {
-    loadLeaderboard();
+  loadLeaderboard();
+}
+
+async function loadLeaderboard() {
+  const q = query(collection(db, "scores"), orderBy("score", "desc"), limit(5));
+  const snapshot = await getDocs(q);
+
+  const board = document.getElementById("leaderboard");
+  board.innerHTML = "";
+
+  snapshot.forEach(doc => {
+    const data = doc.data();
+    const li = document.createElement("li");
+    li.textContent = `${data.email} — ${data.score}`;
+    board.appendChild(li);
   });
 }
 
-// ----------------------------------
-// Leaderboard
-// ----------------------------------
-function loadLeaderboard() {
-  const list = document.getElementById("leaderboard");
-  list.innerHTML = "";
-  db.collection("scores")
-    .orderBy("score", "desc")
-    .limit(10)
-    .get()
-    .then(snapshot => {
-      snapshot.forEach(doc => {
-        let data = doc.data();
+loadLeaderboard();
+
+document.onkeydown = function (e) {
+  if (e.key === "ArrowLeft") moveLeft();
+  if (e.key === "ArrowRight") moveRight();
+};
+
+window.moveLeft = function () {
+  if (player.x > 0) player.x -= 20;
+};
+
+window.moveRight = function () {
+  if (player.x < 280) player.x += 20;
+};        let data = doc.data();
         let li = document.createElement("li");
         li.innerText = `${data.email}: ${data.score}`;
         list.appendChild(li);
