@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Cloud Game</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <h1>☁️ Cloud Score Game</h1>
+
+  <div id="login">
+    <input type="email" id="email" placeholder="Email">
+    <input type="password" id="password" placeholder="Password">
+    <button onclick="signUp()">Sign Up</button>
+    <button onclick="login()">Login</button>
+  </div>
+
+  <div id="game" style="display:none;">
+    <p>Score: <span id="score">0</span></p>
+    <button onclick="increaseScore()">Click Me 🚀</button>
+    <button onclick="saveScore()">Save Score</button>
+  </div>
+
+  <div id="leaderboard">
+    <h2>🏆 Leaderboard</h2>
+    <ul id="scoresList"></ul>
+  </div>
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+
+  <script src="script.js"></script>
+
+</body>
+</html>
