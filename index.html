@@ -1,45 +1,160 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Cloud Dodge</title>
-  <link rel="stylesheet" href="style.css" />
-  <!-- Firebase compat -->
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
+  <title>Cloud Dodge ☁️</title>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Exo+2:wght@300;400;700;900&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="style.css"/>
+
+  <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand">☁️ Cloud Dodge</div>
-    <div class="hud">
-      <div class="score-wrap">Score: <span id="scoreDisplay">0</span></div>
-      <div class="mult-wrap hidden" id="multBadge">×2!</div>
-      <button id="startBtn" class="btn small">Start Game</button>
-    </div>
-  </header>
 
-  <main class="main">
-    <div class="canvas-wrap">
-      <canvas id="gameCanvas" aria-label="Cloud Dodge canvas"></canvas>
-      <div id="gameOver" class="overlay hidden">
-        <div class="gameover-card">
-          <div class="gameover-title">GAME OVER</div>
-          <div class="final">Your Score: <strong id="finalScore">0</strong></div>
-          <button id="playAgain" class="btn">Play Again</button>
-        </div>
+<!-- Background star canvas -->
+<canvas id="bgCanvas"></canvas>
+
+<!-- ════════════ AUTH SCREEN ════════════ -->
+<div id="authScreen" class="screen">
+  <div class="card">
+    <div class="logo">☁️ CLOUD<br><span>DODGE</span></div>
+    <div class="logo-sub">Survive the storm</div>
+
+    <div class="tabs">
+      <button class="tab-btn active" id="tabLogin" onclick="switchTab('login')">Login</button>
+      <button class="tab-btn" id="tabRegister" onclick="switchTab('register')">Register</button>
+    </div>
+
+    <div id="formLogin">
+      <div class="input-group">
+        <label>Email</label>
+        <input id="loginEmail" type="email" placeholder="pilot@sky.com" autocomplete="email"/>
+      </div>
+      <div class="input-group">
+        <label>Password</label>
+        <input id="loginPass" type="password" placeholder="••••••••" autocomplete="current-password"/>
+      </div>
+      <button class="btn btn-primary" onclick="doLogin()">🚀 Take Off</button>
+    </div>
+
+    <div id="formRegister" class="hidden">
+      <div class="input-group">
+        <label>Pilot Name</label>
+        <input id="regName" type="text" placeholder="SkyAce99" maxlength="20" autocomplete="username"/>
+      </div>
+      <div class="input-group">
+        <label>Email</label>
+        <input id="regEmail" type="email" placeholder="pilot@sky.com" autocomplete="email"/>
+      </div>
+      <div class="input-group">
+        <label>Password</label>
+        <input id="regPass" type="password" placeholder="min 6 chars" autocomplete="new-password"/>
+      </div>
+      <button class="btn btn-primary" onclick="doRegister()">🎮 Create Pilot</button>
+    </div>
+
+    <p id="authMsg" class="status-msg"></p>
+  </div>
+</div>
+
+<!-- ════════════ NAV (shown after login) ════════════ -->
+<nav id="gameNav" class="hidden">
+  <button class="nav-btn active" id="navPlay" onclick="showScreen('game')">
+    <span>🎮</span>Play
+  </button>
+  <button class="nav-btn" id="navLB" onclick="showScreen('leaderboard')">
+    <span>🏆</span>Scores
+  </button>
+</nav>
+
+<!-- Profile Badge -->
+<div id="profileBadge" class="hidden">
+  <span id="profileName"></span>
+  <button id="logoutBtn" onclick="doLogout()">Exit</button>
+</div>
+
+<!-- ════════════ GAME SCREEN ════════════ -->
+<div id="gameScreen" class="screen hidden" style="padding-top: 46px;">
+  <!-- HUD -->
+  <div id="hud">
+    <div class="hud-stat">
+      <div class="hud-label">Score</div>
+      <div class="hud-value" id="hudScore">0</div>
+    </div>
+    <div class="hud-stat">
+      <div class="hud-label">Best</div>
+      <div class="hud-value" id="hudBest">0</div>
+    </div>
+    <div class="hud-stat">
+      <div class="hud-label">Combo</div>
+      <div class="hud-value combo" id="hudCombo">x1</div>
+    </div>
+    <div class="hud-stat">
+      <div id="diffBadge" class="easy">EASY</div>
+    </div>
+  </div>
+
+  <!-- Canvas -->
+  <div id="canvasWrap">
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- Start Overlay -->
+    <div id="startOverlay" class="overlay">
+      <div class="overlay-title ready">READY?</div>
+      <div style="font-size:0.8rem; color: rgba(180,220,255,0.6); text-align:center; line-height:1.8; font-weight:300;">
+        Dodge the storm clouds<br/>
+        Collect lightning ⚡ for points<br/>
+        Survive as long as you can!
+      </div>
+      <div class="overlay-btns">
+        <button class="btn btn-primary" onclick="startGame()">🚀 Start Flying</button>
       </div>
     </div>
 
-    <div class="controls-row">
-      <button id="leftBtn" class="btn control">⬅</button>
-      <button id="rightBtn" class="btn control">➡</button>
+    <!-- Game Over Overlay -->
+    <div id="gameOverOverlay" class="overlay hidden">
+      <div class="overlay-title go">GAME OVER</div>
+      <div id="newBestMsg" class="new-best hidden">✨ NEW BEST SCORE! ✨</div>
+      <div class="overlay-score">
+        <span class="label">Your Score</span>
+        <span id="goScore">0</span>
+      </div>
+      <div class="overlay-score">
+        <span class="label">Personal Best</span>
+        <span id="goBest">0</span>
+      </div>
+      <div class="overlay-btns">
+        <button class="btn btn-primary" onclick="startGame()">🔄 Play Again</button>
+        <button class="btn btn-ghost" onclick="showScreen('leaderboard')">🏆 Leaderboard</button>
+      </div>
     </div>
-  </main>
+  </div>
 
-  <footer class="foot">Built with Firebase • Hosted on GitHub Pages</footer>
+  <!-- Mobile controls -->
+  <div id="mobileControls">
+    <button class="ctrl-btn" id="leftBtn">◀</button>
+    <div class="ctrl-btn center-info" style="font-size:0.45rem;">
+      ⬅ / ➡ or<br/>arrow keys
+    </div>
+    <button class="ctrl-btn" id="rightBtn">▶</button>
+  </div>
+</div>
 
-  <script src="script.js"></script>
+<!-- ════════════ LEADERBOARD SCREEN ════════════ -->
+<div id="leaderboardScreen" class="screen hidden" style="padding-top: 46px;">
+  <div class="card">
+    <div class="lb-title">🏆 HALL OF FAME</div>
+    <div id="lbList" class="lb-list">
+      <div class="spinner"></div>
+    </div>
+    <button class="btn btn-ghost" style="margin-top:16px;" onclick="showScreen('game')">← Back to Game</button>
+  </div>
+</div>
+
+<script src="script.js"></script>
 </body>
 </html>
+
