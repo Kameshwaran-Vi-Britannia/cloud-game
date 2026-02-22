@@ -1,4 +1,6 @@
------
+-----/* Cloud Dodge — upgraded controls + colors + multiplier + game-over-on-exit */
+
+// ---------- Firebase config (compat) ----------
 const firebaseConfig = {
   apiKey: "AIzaSyCm6a9GLHaZ_kVdPQtYZFoArFxNprY07cA",
   authDomain: "cloudgame-a1fcd.firebaseapp.com",
@@ -7,155 +9,175 @@ const firebaseConfig = {
   messagingSenderId: "952588137359",
   appId: "1:952588137359:web:41c9773652bc2d0f34d1fa"
 };
-
 firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
+const db = firebase.firestore(); // optional usage later
 
-// -------- DOM REFS --------
-const canvas = document.getElementById("gameCanvas");
-const ctx = canvas.getContext("2d");
-const scoreDisplay = document.getElementById("scoreDisplay");
-const startBtn = document.getElementById("startBtn");
-const gameOverScreen = document.getElementById("gameOverScreen");
-const finalScoreEl = document.getElementById("finalScore");
-const leftBtn = document.getElementById("leftBtn");
-const rightBtn = document.getElementById("rightBtn");
+// ---------- DOM ----------
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const scoreDisplay = document.getElementById('scoreDisplay');
+const multBadge = document.getElementById('multBadge');
+const startBtn = document.getElementById('startBtn');
+const gameOverEl = document.getElementById('gameOver');
+const finalScore = document.getElementById('finalScore');
+const leftBtn = document.getElementById('leftBtn');
+const rightBtn = document.getElementById('rightBtn');
+const playAgain = document.getElementById('playAgain') || document.getElementById('playAgain'); // safety
 
-canvas.width = 360;
-canvas.height = 480;
+// logical canvas size
+const W = 360, H = 480;
+canvas.width = W;
+canvas.height = H;
 
-// -------- GAME STATE --------
-let score = 0;
+// ---------- state ----------
 let running = false;
+let raf = null;
+let lastT = 0;
+let score = 0;
 let obstacles = [];
-let lastTime = 0;
-let rafId;
+let player;
+let multiplierActive = false;
+let multiplierTimer = 0;
 
-// -------- PLAYER --------
-let player = {
-  x: canvas.width/2 - 20,
-  y: canvas.height - 60,
-  size: 40,
-  vx: 0,
-  speed: 4
-};
+// ---------- player (fluid) ----------
+function makePlayer(){
+  return {
+    x: W/2 - 20,
+    y: H - 70,
+    size: 44,
+    vx: 0,
+    speed: 4,
+    maxOutMargin: 18 // how far off edge triggers exit
+  };
+}
+player = makePlayer();
 
-// -------- MULTIPLIER BLOCK --------
-// will be special block that doubles score
-function spawnMultiplier(){
-  const size = 30;
-  const x = Math.random() * (canvas.width - size);
-  return { x, y: -size, size, speed: 2.5, isMulti:true };
+// ---------- obstacle factory ----------
+const OB_COLORS = ['#ef4444','#f97316','#f59e0b','#fbbf24','#10b981','#3b82f6','#6366f1','#06b6d4'];
+function createObstacle(isMult=false){
+  const size = isMult ? 34 : (20 + Math.floor(Math.random()*22));
+  const x = Math.random() * (W - size);
+  const speed = 1.6 + Math.random()*2.0 + (score/2000); // slight ramp with score
+  return {
+    x, y: -size - Math.random()*50, size, speed,
+    color: isMult ? '#d946ef' : OB_COLORS[Math.floor(Math.random()*OB_COLORS.length)],
+    isMult
+  };
 }
 
-// -------- NORMAL OBSTACLE --------
-function spawnObstacle(){
-  const colors = ["#ef4444","#fbbf24","#3b82f6","#10b981"];
-  const size = 28;
-  const x = Math.random() * (canvas.width - size);
-  return { x, y:-size, size, speed: 1.8 + Math.random()*1.8, c: colors[Math.floor(Math.random()*colors.length)], isMulti:false }
+// ---------- spawn logic ----------
+function maybeSpawn(){
+  // spawn base on chance; increase chance with score
+  const baseChance = 0.018 + Math.min(0.032, score/12000);
+  if(Math.random() < baseChance) {
+    // occasional multiplier
+    if(Math.random() < 0.12) obstacles.push(createObstacle(true));
+    else obstacles.push(createObstacle(false));
+  }
 }
 
-// -------- START GAME --------
-startBtn.onclick = () => startGame();
-
-function startGame(){
-  obstacles = [];
-  score = 0;
-  running = true;
-  player.x = canvas.width/2 - player.size/2;
-  scoreDisplay.textContent = score;
-  gameOverScreen.classList.add("hidden");
-  lastTime = performance.now();
-  if(rafId) cancelAnimationFrame(rafId);
-  rafId = requestAnimationFrame(gameLoop);
-}
-
-// -------- UPDATE --------
+// ---------- update (delta ms) ----------
 function update(dt){
-  if(!running) return;
+  // spawn
+  maybeSpawn();
 
-  // spawn obstacles
-  if(Math.random() < 0.02) {
-    if(Math.random() < 0.15) obstacles.push(spawnMultiplier());
-    else obstacles.push(spawnObstacle());
+  // update obstacles
+  for(let i=obstacles.length-1;i>=0;i--){
+    obstacles[i].y += obstacles[i].speed;
+    if(obstacles[i].y > H + 60) obstacles.splice(i,1);
   }
 
-  // move obstacles
-  obstacles.forEach(o => o.y += o.speed);
-
-  // clean off bottom
-  obstacles = obstacles.filter(o => o.y < canvas.height+50);
-
-  // move player
+  // player physics
   player.x += player.vx;
-  if(player.x < 0) player.x = 0;
-  if(player.x > canvas.width - player.size) player.x = canvas.width - player.size;
+  // allow small overshoot; if exceed margin -> game over (player "got out")
+  if(player.x < -player.maxOutMargin || player.x > W - player.size + player.maxOutMargin){
+    // out of bounds -> game over
+    doGameOver();
+    return;
+  }
+  // clamp visually so doesn't fully disappear (but still allow out detection)
+  if(player.x < -player.maxOutMargin) player.x = -player.maxOutMargin;
+  if(player.x > W - player.size + player.maxOutMargin) player.x = W - player.size + player.maxOutMargin;
 
-  // collision
-  for(let o of obstacles){
-    if(
-      player.x < o.x+o.size &&
-      player.x+player.size > o.x &&
-      player.y < o.y+o.size &&
-      player.y+player.size > o.y
-    ){
-      if(o.isMulti){
-        score += 50; // bonus
-        scoreDisplay.textContent = score;
-        obstacles = obstacles.filter(x=>x!==o);
+  // friction / easing
+  player.vx *= 0.88;
+
+  // collision detection
+  for(let i=obstacles.length-1;i>=0;i--){
+    const o=obstacles[i];
+    if(rectsOverlap(player.x,player.y,player.size,player.size, o.x,o.y,o.size,o.size)){
+      if(o.isMult){
+        // activate 2x for 5 seconds
+        multiplierActive = true;
+        multiplierTimer = 5000;
+        multBadge.classList.remove('hidden');
+        // remove multiplier object
+        obstacles.splice(i,1);
       } else {
-        endGame();
+        // normal obstacle collision -> game over
+        doGameOver();
+        return;
       }
     }
   }
 
-  // increase score simply by survival
-  score += Math.floor(dt / 20);
+  // score increment: base rate * dt, doubled when multiplierActive
+  const baseGain = dt * 0.05; // tuning: frames ~60 -> about 3 per second
+  score += multiplierActive ? Math.round(baseGain*2) : Math.round(baseGain);
   scoreDisplay.textContent = score;
-}
 
-// -------- DRAW --------
-function draw(){
-  // clear
-  ctx.fillStyle="#000";
-  ctx.fillRect(0,0,canvas.width,canvas.height);
-
-  // draw player
-  ctx.fillStyle="#06b6d4";
-  roundRect(ctx,player.x,player.y,player.size,player.size,6,true);
-
-  // draw obstacles
-  for(let o of obstacles){
-    if(o.isMulti) ctx.fillStyle="#d946ef";
-    else ctx.fillStyle = o.c;
-    roundRect(ctx,o.x,o.y,o.size,o.size,5,true);
+  // handle multiplier timer
+  if(multiplierActive){
+    multiplierTimer -= dt;
+    if(multiplierTimer <= 0){
+      multiplierActive = false;
+      multBadge.classList.add('hidden');
+    }
   }
 }
 
-// -------- GAME LOOP --------
-function gameLoop(time){
-  if(!running) return;
-  const dt = time - lastTime;
-  lastTime = time;
+// ---------- draw ----------
+function draw(){
+  // clear with subtle gradient
+  const g = ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#071028'); g.addColorStop(1,'#071223');
+  ctx.fillStyle = g;
+  ctx.fillRect(0,0,W,H);
 
+  // obstacles
+  for(const o of obstacles){
+    ctx.fillStyle = o.color;
+    roundRect(ctx, o.x, o.y, o.size, o.size, 6, true);
+  }
+
+  // player (always cyan)
+  ctx.fillStyle = '#06b6d4';
+  roundRect(ctx, player.x, player.y, player.size, player.size, 8, true);
+
+  // small HUD inside canvas (optional)
+  ctx.fillStyle = '#ffffffcc';
+  ctx.font = '14px "Segoe UI", Arial';
+  ctx.fillText('Score: '+score, 8, 20);
+
+  // multiplier indicator near top-right of canvas
+  if(multiplierActive){
+    ctx.fillStyle = '#d946ef';
+    ctx.font = '700 16px "Segoe UI", Arial';
+    ctx.fillText('×2 ACTIVE', W - 100, 24);
+  }
+}
+
+// ---------- main loop ----------
+function loop(ts){
+  if(!running) return;
+  const dt = Math.min(40, ts - (lastT||ts)); // clamp dt small
+  lastT = ts;
   update(dt);
   draw();
-  rafId = requestAnimationFrame(gameLoop);
+  raf = requestAnimationFrame(loop);
 }
 
-// -------- END GAME --------
-function endGame(){
-  running = false;
-  finalScoreEl.innerText = score;
-  gameOverScreen.classList.remove("hidden");
-  if(rafId) cancelAnimationFrame(rafId);
-
-  // save score if authenticated
-  // optional
-}
-
-// -------- HELPERS --------
+// ---------- helpers ----------
 function roundRect(ctx,x,y,w,h,r,fill){
   ctx.beginPath();
   ctx.moveTo(x+r,y);
@@ -165,23 +187,80 @@ function roundRect(ctx,x,y,w,h,r,fill){
   ctx.closePath();
   if(fill) ctx.fill();
 }
+function rectsOverlap(x1,y1,w1,h1,x2,y2,w2,h2){
+  return !(x1 + w1 < x2 || x1 > x2 + w2 || y1 + h1 < y2 || y1 > y2 + h2);
+}
 
-// -------- CONTROLS --------
-window.moveLeft = function(){ player.vx = -player.speed; }
-window.moveRight = function(){ player.vx = player.speed; }
-window.stopMove = function(){ player.vx = 0; }
+// ---------- game controls ----------
+function startGame(){
+  // reset
+  running = true;
+  obstacles = [];
+  score = 0;
+  player = makePlayer();
+  multiplierActive = false;
+  multiplierTimer = 0;
+  multBadge.classList.add('hidden');
+  scoreDisplay.textContent = score;
+  gameOverEl.classList.add('hidden');
+  lastT = performance.now();
+  if(raf) cancelAnimationFrame(raf);
+  raf = requestAnimationFrame(loop);
+}
 
-document.addEventListener("keydown",e=>{
-  if(e.key==="ArrowLeft") moveLeft();
-  if(e.key==="ArrowRight") moveRight();
+// safe guard wrapper to avoid double-calls
+function doGameOver(){
+  if(!running) return;
+  running = false;
+  finalScore.textContent = score;
+  gameOverEl.classList.remove('hidden');
+  // cancel loop
+  if(raf) cancelAnimationFrame(raf);
+  // (optional) save to DB here if you want
+}
+
+// ---------- input: keyboard ----------
+document.addEventListener('keydown', e=>{
+  if(e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') player.vx = -player.speed;
+  if(e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') player.vx = player.speed;
 });
-document.addEventListener("keyup",stopMove);
+document.addEventListener('keyup', e=>{
+  // stop on keyup: better feel if user releases
+  if(e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'a' || e.key === 'A' || e.key === 'd' || e.key === 'D') {
+    player.vx = 0;
+  }
+});
 
-// mobile controls
-leftBtn.addEventListener('touchstart',()=>moveLeft());
-leftBtn.addEventListener('touchend',()=>stopMove());
-leftBtn.addEventListener('click',()=>moveLeft());
+// ---------- input: mobile buttons (hold support) ----------
+leftBtn.addEventListener('touchstart', e=>{ e.preventDefault(); player.vx = -player.speed; });
+leftBtn.addEventListener('touchend', e=>{ e.preventDefault(); player.vx = 0; });
+leftBtn.addEventListener('mousedown', ()=>player.vx = -player.speed);
+leftBtn.addEventListener('mouseup', ()=>player.vx = 0);
+leftBtn.addEventListener('mouseleave', ()=>player.vx = 0);
 
-rightBtn.addEventListener('touchstart',()=>moveRight());
-rightBtn.addEventListener('touchend',()=>stopMove());
-rightBtn.addEventListener('click',()=>moveRight());
+rightBtn.addEventListener('touchstart', e=>{ e.preventDefault(); player.vx = player.speed; });
+rightBtn.addEventListener('touchend', e=>{ e.preventDefault(); player.vx = 0; });
+rightBtn.addEventListener('mousedown', ()=>player.vx = player.speed);
+rightBtn.addEventListener('mouseup', ()=>player.vx = 0);
+rightBtn.addEventListener('mouseleave', ()=>player.vx = 0);
+
+// ---------- UI hookup ----------
+startBtn.addEventListener('click', startGame);
+const playAgainBtn = document.getElementById('playAgain');
+if(playAgainBtn) playAgainBtn.addEventListener('click', startGame);
+
+// small helper to create the initial player object (used on reset)
+function makePlayer(){
+  return {
+    x: W/2 - 22,
+    y: H - 80,
+    size: 44,
+    vx: 0,
+    speed: 4,
+    maxOutMargin: 22
+  };
+}
+
+// ---------- init ----------
+scoreDisplay.textContent = '0';
+multBadge.classList.add('hidden');
