@@ -1,4 +1,4 @@
------/* Cloud Dodge — upgraded controls + colors + multiplier + game-over-on-exit */
+Cloud Dodge — upgraded controls + colors + multiplier + game-over-on-exit */
 
 // ---------- Firebase config (compat) ----------
 const firebaseConfig = {
@@ -263,4 +263,4 @@ function makePlayer(){
 
 // ---------- init ----------
 scoreDisplay.textContent = '0';
-multBadge.classList.add('hidden');
+multBadge.classList.add('hidden
