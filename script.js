@@ -1,4 +1,4 @@
-// -------- FIREBASE CONFIG --------
+-----
 const firebaseConfig = {
   apiKey: "AIzaSyCm6a9GLHaZ_kVdPQtYZFoArFxNprY07cA",
   authDomain: "cloudgame-a1fcd.firebaseapp.com",
