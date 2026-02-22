@@ -1,4 +1,4 @@
-// --------- FIREBASE CONFIG ---------
+// -------- FIREBASE CONFIG --------
 const firebaseConfig = {
   apiKey: "AIzaSyCm6a9GLHaZ_kVdPQtYZFoArFxNprY07cA",
   authDomain: "cloudgame-a1fcd.firebaseapp.com",
@@ -9,294 +9,179 @@ const firebaseConfig = {
 };
 
 firebase.initializeApp(firebaseConfig);
-const auth = firebase.auth();
 const db = firebase.firestore();
 
-// --------- DOM ELEMENTS ---------
-const authCard = document.getElementById('authCard');
-const nameCard = document.getElementById('nameCard');
-const gameCard = document.getElementById('gameCard');
-const authMsg = document.getElementById('authMsg');
-const welcomeEmail = document.getElementById('welcomeEmail');
-const gamerNameInput = document.getElementById('gamerName');
-const scoreDisplay = document.getElementById('scoreDisplay');
-const leaderboardEl = document.getElementById('leaderboard');
-const gameMsg = document.getElementById('gameMsg');
+// -------- DOM REFS --------
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+const scoreDisplay = document.getElementById("scoreDisplay");
+const startBtn = document.getElementById("startBtn");
+const gameOverScreen = document.getElementById("gameOverScreen");
+const finalScoreEl = document.getElementById("finalScore");
+const leftBtn = document.getElementById("leftBtn");
+const rightBtn = document.getElementById("rightBtn");
 
-const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
+canvas.width = 360;
+canvas.height = 480;
 
-const CANVAS_W = 360;
-const CANVAS_H = 480;
-
-canvas.width = CANVAS_W;
-canvas.height = CANVAS_H;
-
-// --------- GAME STATE ---------
-let user = null;
-let gamerName = '';
+// -------- GAME STATE --------
 let score = 0;
-let gameRunning = false;
-let rafId = null;
+let running = false;
 let obstacles = [];
-let lastObstacleAt = 0;
+let lastTime = 0;
+let rafId;
 
-// --------- PLAYER (POLISHED) ---------
+// -------- PLAYER --------
 let player = {
-  x: CANVAS_W / 2 - 20,
-  y: CANVAS_H - 60,
+  x: canvas.width/2 - 20,
+  y: canvas.height - 60,
   size: 40,
-  speed: 4,
-  vx: 0
+  vx: 0,
+  speed: 4
 };
 
-// --------- AUTH FUNCTIONS ---------
-window.signUp = function () {
-  const email = document.getElementById('email').value.trim();
-  const pass = document.getElementById('password').value;
-
-  if (!email || !pass) return showMessage("Enter email & password");
-
-  auth.createUserWithEmailAndPassword(email, pass)
-    .then(() => showMessage("Account created!", "success"))
-    .catch(err => showMessage(err.message));
-};
-
-window.login = function () {
-  const email = document.getElementById('email').value.trim();
-  const pass = document.getElementById('password').value;
-
-  if (!email || !pass) return showMessage("Enter email & password");
-
-  auth.signInWithEmailAndPassword(email, pass)
-    .then(() => showMessage("Login successful!", "success"))
-    .catch(err => showMessage(err.message));
-};
-
-window.logout = function () {
-  auth.signOut().then(() => location.reload());
-};
-
-auth.onAuthStateChanged(async (u) => {
-  user = u;
-
-  if (user) {
-    authCard.style.display = 'none';
-    nameCard.style.display = 'block';
-    welcomeEmail.textContent = user.email;
-
-    const doc = await db.collection('players').doc(user.uid).get();
-    if (doc.exists && doc.data().gamerName) {
-      gamerName = doc.data().gamerName;
-      gamerNameInput.value = gamerName;
-      showGameArea();
-    }
-
-    loadLeaderboard();
-  }
-});
-
-// --------- GAMER NAME ---------
-window.setGamerName = async function () {
-  const name = gamerNameInput.value.trim();
-
-  if (!name) return showMessage("Enter gamer name");
-
-  gamerName = name;
-
-  await db.collection('players').doc(user.uid).set({
-    email: user.email,
-    gamerName: gamerName,
-    highscore: 0
-  }, { merge: true });
-
-  showGameArea();
-};
-
-// --------- UI HELPERS ---------
-function showGameArea() {
-  nameCard.style.display = 'none';
-  gameCard.style.display = 'block';
-}
-
-function showMessage(msg, type = "error") {
-  authMsg.textContent = msg;
-  authMsg.style.color = type === "error" ? "#ff9b9b" : "#b7f0e9";
-}
-
-// --------- GAME LOGIC ---------
-function spawnObstacle() {
+// -------- MULTIPLIER BLOCK --------
+// will be special block that doubles score
+function spawnMultiplier(){
   const size = 30;
-  const x = Math.random() * (CANVAS_W - size);
-
-  obstacles.push({
-    x,
-    y: -size,
-    size,
-    speed: 2 + Math.random() * 2
-  });
+  const x = Math.random() * (canvas.width - size);
+  return { x, y: -size, size, speed: 2.5, isMulti:true };
 }
 
-function update(delta) {
-  lastObstacleAt += delta;
+// -------- NORMAL OBSTACLE --------
+function spawnObstacle(){
+  const colors = ["#ef4444","#fbbf24","#3b82f6","#10b981"];
+  const size = 28;
+  const x = Math.random() * (canvas.width - size);
+  return { x, y:-size, size, speed: 1.8 + Math.random()*1.8, c: colors[Math.floor(Math.random()*colors.length)], isMulti:false }
+}
 
-  if (lastObstacleAt > 700 - Math.min(score * 5, 400)) {
-    lastObstacleAt = 0;
-    spawnObstacle();
+// -------- START GAME --------
+startBtn.onclick = () => startGame();
+
+function startGame(){
+  obstacles = [];
+  score = 0;
+  running = true;
+  player.x = canvas.width/2 - player.size/2;
+  scoreDisplay.textContent = score;
+  gameOverScreen.classList.add("hidden");
+  lastTime = performance.now();
+  if(rafId) cancelAnimationFrame(rafId);
+  rafId = requestAnimationFrame(gameLoop);
+}
+
+// -------- UPDATE --------
+function update(dt){
+  if(!running) return;
+
+  // spawn obstacles
+  if(Math.random() < 0.02) {
+    if(Math.random() < 0.15) obstacles.push(spawnMultiplier());
+    else obstacles.push(spawnObstacle());
   }
 
+  // move obstacles
   obstacles.forEach(o => o.y += o.speed);
-  obstacles = obstacles.filter(o => o.y < CANVAS_H + 50);
 
-  // SMOOTH MOVEMENT
+  // clean off bottom
+  obstacles = obstacles.filter(o => o.y < canvas.height+50);
+
+  // move player
   player.x += player.vx;
+  if(player.x < 0) player.x = 0;
+  if(player.x > canvas.width - player.size) player.x = canvas.width - player.size;
 
-  if (player.x < 0) player.x = 0;
-  if (player.x > CANVAS_W - player.size)
-    player.x = CANVAS_W - player.size;
+  // collision
+  for(let o of obstacles){
+    if(
+      player.x < o.x+o.size &&
+      player.x+player.size > o.x &&
+      player.y < o.y+o.size &&
+      player.y+player.size > o.y
+    ){
+      if(o.isMulti){
+        score += 50; // bonus
+        scoreDisplay.textContent = score;
+        obstacles = obstacles.filter(x=>x!==o);
+      } else {
+        endGame();
+      }
+    }
+  }
 
-  // friction / easing
-  player.vx *= 0.9;
-
-  detectCollision();
-
-  score += Math.floor(delta / 16);
+  // increase score simply by survival
+  score += Math.floor(dt / 20);
   scoreDisplay.textContent = score;
 }
 
-function detectCollision() {
-  for (let o of obstacles) {
-    if (
-      player.x < o.x + o.size &&
-      player.x + player.size > o.x &&
-      player.y < o.y + o.size &&
-      player.y + player.size > o.y
-    ) {
-      endGame();
-    }
+// -------- DRAW --------
+function draw(){
+  // clear
+  ctx.fillStyle="#000";
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  // draw player
+  ctx.fillStyle="#06b6d4";
+  roundRect(ctx,player.x,player.y,player.size,player.size,6,true);
+
+  // draw obstacles
+  for(let o of obstacles){
+    if(o.isMulti) ctx.fillStyle="#d946ef";
+    else ctx.fillStyle = o.c;
+    roundRect(ctx,o.x,o.y,o.size,o.size,5,true);
   }
 }
 
-function render() {
-  ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
-
-  // Player
-  ctx.fillStyle = "cyan";
-  ctx.fillRect(player.x, player.y, player.size, player.size);
-
-  // Obstacles
-  ctx.fillStyle = "red";
-  obstacles.forEach(o => ctx.fillRect(o.x, o.y, o.size, o.size));
-
-  ctx.fillStyle = "white";
-  ctx.fillText("Score: " + score, 10, 20);
-}
-
-// --------- LOOP ---------
-let lastTime = 0;
-
-function loop(time) {
-  if (!gameRunning) return;
-
-  const delta = time - lastTime;
+// -------- GAME LOOP --------
+function gameLoop(time){
+  if(!running) return;
+  const dt = time - lastTime;
   lastTime = time;
 
-  update(delta);
-  render();
-
-  rafId = requestAnimationFrame(loop);
+  update(dt);
+  draw();
+  rafId = requestAnimationFrame(gameLoop);
 }
 
-window.startGame = function () {
-  obstacles = [];
-  score = 0;
-  gameRunning = true;
-  lastTime = performance.now();
+// -------- END GAME --------
+function endGame(){
+  running = false;
+  finalScoreEl.innerText = score;
+  gameOverScreen.classList.remove("hidden");
+  if(rafId) cancelAnimationFrame(rafId);
 
-  if (rafId) cancelAnimationFrame(rafId);
-  rafId = requestAnimationFrame(loop);
-};
+  // save score if authenticated
+  // optional
+}
 
-// --------- POLISHED CONTROLS ---------
-window.moveLeft = function () {
-  player.vx = -player.speed;
-};
+// -------- HELPERS --------
+function roundRect(ctx,x,y,w,h,r,fill){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);
+  ctx.closePath();
+  if(fill) ctx.fill();
+}
 
-window.moveRight = function () {
-  player.vx = player.speed;
-};
+// -------- CONTROLS --------
+window.moveLeft = function(){ player.vx = -player.speed; }
+window.moveRight = function(){ player.vx = player.speed; }
+window.stopMove = function(){ player.vx = 0; }
 
-window.stopMove = function () {
-  player.vx = 0;
-};
-
-// Keyboard
-document.addEventListener('keydown', e => {
-  if (e.key === "ArrowLeft") moveLeft();
-  if (e.key === "ArrowRight") moveRight();
+document.addEventListener("keydown",e=>{
+  if(e.key==="ArrowLeft") moveLeft();
+  if(e.key==="ArrowRight") moveRight();
 });
+document.addEventListener("keyup",stopMove);
 
-document.addEventListener('keyup', stopMove);
+// mobile controls
+leftBtn.addEventListener('touchstart',()=>moveLeft());
+leftBtn.addEventListener('touchend',()=>stopMove());
+leftBtn.addEventListener('click',()=>moveLeft());
 
-// Mobile buttons
-const leftBtn = document.getElementById('leftBtn');
-const rightBtn = document.getElementById('rightBtn');
-
-leftBtn.addEventListener('touchstart', e => {
-  e.preventDefault();
-  moveLeft();
-});
-leftBtn.addEventListener('touchend', stopMove);
-leftBtn.addEventListener('click', moveLeft);
-
-rightBtn.addEventListener('touchstart', e => {
-  e.preventDefault();
-  moveRight();
-});
-rightBtn.addEventListener('touchend', stopMove);
-rightBtn.addEventListener('click', moveRight);
-
-// --------- END GAME ---------
-function endGame() {
-  gameRunning = false;
-  cancelAnimationFrame(rafId);
-  saveScore();
-}
-
-async function saveScore() {
-  if (!user) return;
-
-  const ref = db.collection('players').doc(user.uid);
-  const snap = await ref.get();
-
-  const prev = snap.exists ? snap.data().highscore : 0;
-
-  if (score > prev) {
-    await ref.set({ highscore: score }, { merge: true });
-  }
-
-  loadLeaderboard();
-}
-
-// --------- LEADERBOARD ---------
-async function loadLeaderboard() {
-  const snap = await db.collection('players')
-    .orderBy('highscore', 'desc')
-    .limit(10)
-    .get();
-
-  leaderboardEl.innerHTML = "";
-
-  let rank = 1;
-  snap.forEach(doc => {
-    const data = doc.data();
-
-    const li = document.createElement("li");
-    li.textContent = `${rank}. ${data.gamerName} — ${data.highscore}`;
-    leaderboardEl.appendChild(li);
-
-    rank++;
-  });
-}
-
-loadLeaderboard();
+rightBtn.addEventListener('touchstart',()=>moveRight());
+rightBtn.addEventListener('touchend',()=>stopMove());
+rightBtn.addEventListener('click',()=>moveRight());
