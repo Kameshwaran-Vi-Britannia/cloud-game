@@ -1,49 +1,86 @@
-:root{
-  --bg:#0f1724;
-  --card:#0b1220;
-  --accent:#06b6d4;
-  --muted:#9aa4b2;
-  --glass: rgba(255,255,255,0.03);
+body {
+  margin: 0;
+  padding: 0;
+  background: #0f172a;
+  font-family: 'Segoe UI', sans-serif;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
-*{box-sizing:border-box}
-html,body{height:100%;margin:0;font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;}
-body{background:linear-gradient(180deg,#071022 0%,var(--bg) 100%);color:#fff;display:flex;flex-direction:column;align-items:center;gap:12px;padding:18px;}
+.game-title {
+  font-size: 2rem;
+  font-weight: bold;
+  margin: 10px;
+  text-shadow: 0 0 6px #06b6d4;
+}
 
-header{ text-align:center; margin-top:4px; }
-h1{margin:0;font-size:1.6rem;letter-spacing:0.6px}
-.sub{color:var(--muted); margin-top:6px; font-size:0.95rem}
+.score-area {
+  width: 90%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(255,255,255,0.08);
+  padding: 10px 14px;
+  border-radius: 10px;
+  margin-bottom: 8px;
+  font-size: 1.3rem;
+}
 
-main{width:100%;max-width:920px;display:grid;gap:12px;grid-template-columns:1fr 420px;align-items:start;}
-@media (max-width:900px){ main{grid-template-columns:1fr; padding:0; } }
+#startBtn {
+  background: #06b6d4;
+  border: none;
+  padding: 8px 14px;
+  border-radius: 8px;
+  color: #012;
+  font-weight: bold;
+  cursor: pointer;
+  box-shadow: 0px 4px 10px rgba(6,182,212,0.4);
+}
 
-.card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); border:1px solid rgba(255,255,255,0.04); padding:14px; border-radius:12px;}
-input{display:block;width:100%;padding:10px;margin:8px 0;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:#fff}
-button{background:var(--glass);color:#fff;border:1px solid rgba(255,255,255,0.04);padding:10px 12px;border-radius:10px;font-weight:600}
-button.accent{background:linear-gradient(90deg,var(--accent),#00d4b4);color:#012;box-shadow:0 6px 18px rgba(6,182,212,0.12)}
-.row{display:flex;gap:8px;flex-wrap:wrap}
-.muted{color:var(--muted)}
-.small{font-size:0.85rem}
+canvas {
+  border: 3px solid #344156;
+  background: #000;
+  width: 90%;
+  max-width: 380px;
+}
 
-/* Game area */
-#gameCard{display:flex;flex-direction:column;gap:8px;align-items:center}
-.game-top-row{width:100%;display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
-.score-box{background:rgba(255,255,255,0.03);padding:8px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.02);font-weight:700}
+.controls {
+  display: flex;
+  gap: 16px;
+  margin-top: 12px;
+}
 
-canvas{max-width:90vw;width:360px;height:auto;border-radius:10px;display:block}
+.controls button {
+  width: 140px;
+  height: 60px;
+  font-size: 1.8rem;
+  background: #06b6d4;
+  border: none;
+  border-radius: 12px;
+  color: #012;
+  font-weight: bold;
+  box-shadow: 0px 6px 14px rgba(6,182,212,0.3);
+}
 
-/* Mobile controls */
-#mobileControls{display:flex;gap:12px;justify-content:center;margin-top:8px}
-#mobileControls button{width:80px;height:48px;font-size:20px;border-radius:12px}
+.game-over {
+  position: absolute;
+  top: 30%;
+  text-align: center;
+}
 
-/* Leaderboard styling */
-.leaderboard-card{padding:16px;display:flex;flex-direction:column;gap:10px;align-items:stretch}
-#leaderboard{list-style:decimal-leading-zero;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
-#leaderboard li{background:linear-gradient(90deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));padding:12px;border-radius:10px;display:flex;justify-content:space-between;align-items:center;font-weight:700}
-#leaderboard li .meta{font-size:0.85rem;color:var(--muted)}
+.hidden {
+  display: none;
+}
 
-/* footer */
-.foot{font-size:0.85rem;opacity:0.8;margin-bottom:8px}
+.game-over-text {
+  font-size: 3rem;
+  color: #ef4444;
+  text-shadow: 0 0 6px #ef4444;
+}
 
-/* big first place highlight */
-#leaderboard li:first-child{border:1px solid rgba(6,182,212,0.18);box-shadow:0 8px 28px rgba(6,182,212,0.06)}
+.final-score {
+  margin: 12px 0;
+  font-size: 1.6rem;
+}
