@@ -1,6 +1,4 @@
-Cloud Dodge — upgraded controls + colors + multiplier + game-over-on-exit */
-
-// ---------- Firebase config (compat) ----------
+// --------- FIREBASE CONFIG (compat style) ---------
 const firebaseConfig = {
   apiKey: "AIzaSyCm6a9GLHaZ_kVdPQtYZFoArFxNprY07cA",
   authDomain: "cloudgame-a1fcd.firebaseapp.com",
@@ -9,258 +7,320 @@ const firebaseConfig = {
   messagingSenderId: "952588137359",
   appId: "1:952588137359:web:41c9773652bc2d0f34d1fa"
 };
+
 firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore(); // optional usage later
+const auth = firebase.auth();
+const db = firebase.firestore();
 
-// ---------- DOM ----------
-const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
+// --------- DOM refs ---------
+const emailInput = document.getElementById('email');
+const passInput = document.getElementById('password');
+const authMsg = document.getElementById('authMsg');
+const authCard = document.getElementById('authCard');
+const nameCard = document.getElementById('nameCard');
+const welcomeEmail = document.getElementById('welcomeEmail');
+const gamerNameInput = document.getElementById('gamerName');
+const gameCard = document.getElementById('gameCard');
 const scoreDisplay = document.getElementById('scoreDisplay');
-const multBadge = document.getElementById('multBadge');
-const startBtn = document.getElementById('startBtn');
-const gameOverEl = document.getElementById('gameOver');
-const finalScore = document.getElementById('finalScore');
-const leftBtn = document.getElementById('leftBtn');
-const rightBtn = document.getElementById('rightBtn');
-const playAgain = document.getElementById('playAgain') || document.getElementById('playAgain'); // safety
+const leaderboardEl = document.getElementById('leaderboard');
+const gameMsg = document.getElementById('gameMsg');
 
-// logical canvas size
-const W = 360, H = 480;
-canvas.width = W;
-canvas.height = H;
-
-// ---------- state ----------
-let running = false;
-let raf = null;
-let lastT = 0;
+let user = null;
+let gamerName = '';
 let score = 0;
+let gameRunning = false;
+let rafId = null;
 let obstacles = [];
-let player;
-let multiplierActive = false;
-let multiplierTimer = 0;
+let lastObstacleAt = 0;
+let canvas = document.getElementById('gameCanvas');
+let ctx = canvas.getContext('2d');
 
-// ---------- player (fluid) ----------
-function makePlayer(){
-  return {
-    x: W/2 - 20,
-    y: H - 70,
-    size: 44,
-    vx: 0,
-    speed: 4,
-    maxOutMargin: 18 // how far off edge triggers exit
-  };
-}
-player = makePlayer();
+// responsive canvas sizing (use CSS width but keep logical coordinate space)
+const CANVAS_W = 360, CANVAS_H = 480;
+canvas.width = CANVAS_W;
+canvas.height = CANVAS_H;
 
-// ---------- obstacle factory ----------
-const OB_COLORS = ['#ef4444','#f97316','#f59e0b','#fbbf24','#10b981','#3b82f6','#6366f1','#06b6d4'];
-function createObstacle(isMult=false){
-  const size = isMult ? 34 : (20 + Math.floor(Math.random()*22));
-  const x = Math.random() * (W - size);
-  const speed = 1.6 + Math.random()*2.0 + (score/2000); // slight ramp with score
-  return {
-    x, y: -size - Math.random()*50, size, speed,
-    color: isMult ? '#d946ef' : OB_COLORS[Math.floor(Math.random()*OB_COLORS.length)],
-    isMult
-  };
-}
+// Player
+let player = { x: CANVAS_W/2 - 20, y: CANVAS_H - 60, size: 40 };
 
-// ---------- spawn logic ----------
-function maybeSpawn(){
-  // spawn base on chance; increase chance with score
-  const baseChance = 0.018 + Math.min(0.032, score/12000);
-  if(Math.random() < baseChance) {
-    // occasional multiplier
-    if(Math.random() < 0.12) obstacles.push(createObstacle(true));
-    else obstacles.push(createObstacle(false));
+// ----------------- AUTH HANDLERS -----------------
+window.signUp = function() {
+  clearMessage();
+  const email = emailInput.value.trim();
+  const pass = passInput.value;
+  if (!email || !pass) return showMessage('Enter email and password');
+
+  auth.createUserWithEmailAndPassword(email, pass)
+    .then(cred => {
+      showMessage('Account created. Please set a gamer name.', 'success');
+      // auto sign-in triggers onAuthStateChanged; keep UX simple
+    })
+    .catch(err => showMessage(err.message));
+};
+
+window.login = function() {
+  clearMessage();
+  const email = emailInput.value.trim();
+  const pass = passInput.value;
+  if (!email || !pass) return showMessage('Enter email and password');
+
+  auth.signInWithEmailAndPassword(email, pass)
+    .then(() => showMessage('Logged in. Set a gamer name to proceed.', 'success'))
+    .catch(err => showMessage(err.message));
+};
+
+window.logout = function() {
+  auth.signOut().then(()=> location.reload());
+};
+
+// respond to auth state
+auth.onAuthStateChanged(async (u) => {
+  user = u;
+  if (user) {
+    // show name card
+    authCard.style.display = 'none';
+    nameCard.style.display = 'block';
+    welcomeEmail.textContent = user.email;
+    // fetch saved gamer name if exists
+    const doc = await db.collection('players').doc(user.uid).get();
+    if (doc.exists && doc.data().gamerName) {
+      gamerName = doc.data().gamerName;
+      gamerNameInput.value = gamerName;
+      // skip name card if already set
+      // show game area immediately
+      showGameArea();
+    }
+    loadLeaderboard();
+  } else {
+    authCard.style.display = 'block';
+    nameCard.style.display = 'none';
+    gameCard.style.display = 'none';
   }
+});
+
+// Set gamer name (save to players collection)
+window.setGamerName = async function() {
+  clearMessage();
+  const name = gamerNameInput.value.trim();
+  if (!user) return showMessage('Login first');
+  if (!name) return showMessage('Enter a gamer name');
+
+  gamerName = name;
+  await db.collection('players').doc(user.uid).set({
+    email: user.email,
+    gamerName: gamerName,
+    highscore: 0
+  }, { merge: true });
+
+  showMessage('Gamer name saved. Ready to play!', 'success');
+  showGameArea();
+  loadLeaderboard();
+};
+
+// ----------------- SMALL HELPERS -----------------
+function showMessage(msg, type='error') {
+  authMsg.textContent = msg;
+  authMsg.style.color = type === 'error' ? '#ff9b9b' : '#b7f0e9';
+}
+function clearMessage(){
+  authMsg.textContent = '';
 }
 
-// ---------- update (delta ms) ----------
-function update(dt){
-  // spawn
-  maybeSpawn();
+// ----------------- UI toggles -----------------
+function showGameArea(){
+  nameCard.style.display = 'none';
+  gameCard.style.display = 'block';
+  gameMsg.textContent = 'Use left/right arrows or buttons. Survive to score.';
+}
+
+// ----------------- GAME LOOP & LOGIC -----------------
+function spawnObstacle(){
+  const size = 28 + Math.floor(Math.random()*24);
+  const x = Math.max(0, Math.random()*(CANVAS_W - size));
+  obstacles.push({ x, y: -size, size, speed: 2 + Math.random()*2 });
+}
+
+function update(delta){
+  // spawn logic
+  lastObstacleAt += delta;
+  if (lastObstacleAt > 700 - Math.min(400, score*6)) { // increasing difficulty
+    lastObstacleAt = 0;
+    spawnObstacle();
+  }
 
   // update obstacles
-  for(let i=obstacles.length-1;i>=0;i--){
+  for (let i = obstacles.length -1; i >= 0; i--){
     obstacles[i].y += obstacles[i].speed;
-    if(obstacles[i].y > H + 60) obstacles.splice(i,1);
+    if (obstacles[i].y > CANVAS_H + 50) obstacles.splice(i,1);
   }
 
-  // player physics
-  player.x += player.vx;
-  // allow small overshoot; if exceed margin -> game over (player "got out")
-  if(player.x < -player.maxOutMargin || player.x > W - player.size + player.maxOutMargin){
-    // out of bounds -> game over
-    doGameOver();
-    return;
-  }
-  // clamp visually so doesn't fully disappear (but still allow out detection)
-  if(player.x < -player.maxOutMargin) player.x = -player.maxOutMargin;
-  if(player.x > W - player.size + player.maxOutMargin) player.x = W - player.size + player.maxOutMargin;
-
-  // friction / easing
-  player.vx *= 0.88;
-
-  // collision detection
-  for(let i=obstacles.length-1;i>=0;i--){
-    const o=obstacles[i];
-    if(rectsOverlap(player.x,player.y,player.size,player.size, o.x,o.y,o.size,o.size)){
-      if(o.isMult){
-        // activate 2x for 5 seconds
-        multiplierActive = true;
-        multiplierTimer = 5000;
-        multBadge.classList.remove('hidden');
-        // remove multiplier object
-        obstacles.splice(i,1);
-      } else {
-        // normal obstacle collision -> game over
-        doGameOver();
-        return;
-      }
+  // collision
+  for (let o of obstacles){
+    if (rectIntersect(player.x, player.y, player.size, player.size, o.x, o.y, o.size, o.size)){
+      endGame();
+      return;
     }
   }
 
-  // score increment: base rate * dt, doubled when multiplierActive
-  const baseGain = dt * 0.05; // tuning: frames ~60 -> about 3 per second
-  score += multiplierActive ? Math.round(baseGain*2) : Math.round(baseGain);
+  // increase score
+  score += Math.floor(delta/16); // approx per frame
   scoreDisplay.textContent = score;
-
-  // handle multiplier timer
-  if(multiplierActive){
-    multiplierTimer -= dt;
-    if(multiplierTimer <= 0){
-      multiplierActive = false;
-      multBadge.classList.add('hidden');
-    }
-  }
 }
 
-// ---------- draw ----------
-function draw(){
-  // clear with subtle gradient
-  const g = ctx.createLinearGradient(0,0,0,H);
-  g.addColorStop(0,'#071028'); g.addColorStop(1,'#071223');
-  ctx.fillStyle = g;
-  ctx.fillRect(0,0,W,H);
+function render(){
+  // clear
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0,0,CANVAS_W, CANVAS_H);
+
+  // player
+  ctx.fillStyle = '#06b6d4';
+  roundRect(ctx, player.x, player.y, player.size, player.size, 8, true, false);
 
   // obstacles
-  for(const o of obstacles){
-    ctx.fillStyle = o.color;
-    roundRect(ctx, o.x, o.y, o.size, o.size, 6, true);
+  for (let i=0;i<obstacles.length;i++){
+    ctx.fillStyle = '#ff6b6b';
+    const o = obstacles[i];
+    roundRect(ctx, o.x, o.y, o.size, o.size, 6, true, false);
   }
 
-  // player (always cyan)
-  ctx.fillStyle = '#06b6d4';
-  roundRect(ctx, player.x, player.y, player.size, player.size, 8, true);
-
-  // small HUD inside canvas (optional)
-  ctx.fillStyle = '#ffffffcc';
-  ctx.font = '14px "Segoe UI", Arial';
-  ctx.fillText('Score: '+score, 8, 20);
-
-  // multiplier indicator near top-right of canvas
-  if(multiplierActive){
-    ctx.fillStyle = '#d946ef';
-    ctx.font = '700 16px "Segoe UI", Arial';
-    ctx.fillText('×2 ACTIVE', W - 100, 24);
-  }
+  // HUD
+  ctx.fillStyle = 'white';
+  ctx.font = '16px Inter, Arial';
+  ctx.fillText('Score: ' + score, 10, 22);
 }
 
-// ---------- main loop ----------
-function loop(ts){
-  if(!running) return;
-  const dt = Math.min(40, ts - (lastT||ts)); // clamp dt small
-  lastT = ts;
-  update(dt);
-  draw();
-  raf = requestAnimationFrame(loop);
+// main driver
+let lastTime = 0;
+function loop(time){
+  if (!gameRunning) return;
+  const delta = time - lastTime;
+  lastTime = time;
+  update(delta);
+  render();
+  rafId = requestAnimationFrame(loop);
 }
 
-// ---------- helpers ----------
-function roundRect(ctx,x,y,w,h,r,fill){
+window.startGame = function(){
+  if (!user) return showMessage('Login first');
+  if (!gamerName) return showMessage('Set a gamer name first');
+
+  // reset state
+  obstacles = [];
+  score = 0;
+  player.x = CANVAS_W/2 - player.size/2;
+  lastObstacleAt = 0;
+  gameRunning = true;
+  lastTime = performance.now();
+  if (rafId) cancelAnimationFrame(rafId);
+  rafId = requestAnimationFrame(loop);
+  gameMsg.textContent = '';
+};
+
+// Move functions (global for buttons & keyboard)
+window.moveLeft = function(){
+  player.x = Math.max(0, player.x - 36);
+};
+window.moveRight = function(){
+  player.x = Math.min(CANVAS_W - player.size, player.x + 36);
+};
+
+// touch / click handlers for mobile buttons
+const leftBtn = document.getElementById('leftBtn');
+const rightBtn = document.getElementById('rightBtn');
+
+leftBtn.addEventListener('touchstart', (e)=>{ e.preventDefault(); moveLeft(); });
+leftBtn.addEventListener('click', ()=> moveLeft());
+rightBtn.addEventListener('touchstart', (e)=>{ e.preventDefault(); moveRight(); });
+rightBtn.addEventListener('click', ()=> moveRight());
+
+// keyboard
+document.addEventListener('keydown', (e)=>{
+  if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') moveLeft();
+  if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') moveRight();
+});
+
+// helper to draw rounded rect
+function roundRect(ctx, x, y, w, h, r, fill, stroke){
+  if (r===undefined) r=5;
   ctx.beginPath();
-  ctx.moveTo(x+r,y);
-  ctx.arcTo(x+w,y,x+w,y+h,r);
-  ctx.arcTo(x+w,y+h,x,y+h,r);
-  ctx.arcTo(x,y+h,x,y,r);
+  ctx.moveTo(x+r, y);
+  ctx.arcTo(x+w, y, x+w, y+h, r);
+  ctx.arcTo(x+w, y+h, x, y+h, r);
+  ctx.arcTo(x, y+h, x, y, r);
+  ctx.arcTo(x, y, x+w, y, r);
   ctx.closePath();
-  if(fill) ctx.fill();
+  if (fill) ctx.fill();
+  if (stroke) ctx.stroke();
 }
-function rectsOverlap(x1,y1,w1,h1,x2,y2,w2,h2){
+function rectIntersect(x1,y1,w1,h1,x2,y2,w2,h2){
   return !(x1 + w1 < x2 || x1 > x2 + w2 || y1 + h1 < y2 || y1 > y2 + h2);
 }
 
-// ---------- game controls ----------
-function startGame(){
-  // reset
-  running = true;
-  obstacles = [];
-  score = 0;
-  player = makePlayer();
-  multiplierActive = false;
-  multiplierTimer = 0;
-  multBadge.classList.add('hidden');
-  scoreDisplay.textContent = score;
-  gameOverEl.classList.add('hidden');
-  lastT = performance.now();
-  if(raf) cancelAnimationFrame(raf);
-  raf = requestAnimationFrame(loop);
+// ----------------- END GAME & SAVE -----------------
+function endGame(){
+  gameRunning = false;
+  if (rafId) cancelAnimationFrame(rafId);
+  gameMsg.textContent = 'Game Over • Saving score...';
+  saveHighscore();
 }
 
-// safe guard wrapper to avoid double-calls
-function doGameOver(){
-  if(!running) return;
-  running = false;
-  finalScore.textContent = score;
-  gameOverEl.classList.remove('hidden');
-  // cancel loop
-  if(raf) cancelAnimationFrame(raf);
-  // (optional) save to DB here if you want
-}
-
-// ---------- input: keyboard ----------
-document.addEventListener('keydown', e=>{
-  if(e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') player.vx = -player.speed;
-  if(e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') player.vx = player.speed;
-});
-document.addEventListener('keyup', e=>{
-  // stop on keyup: better feel if user releases
-  if(e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'a' || e.key === 'A' || e.key === 'd' || e.key === 'D') {
-    player.vx = 0;
+async function saveHighscore(){
+  if (!user) {
+    gameMsg.textContent = 'Not signed in — score not saved.';
+    return;
   }
-});
+  try {
+    const playerRef = db.collection('players').doc(user.uid);
+    const snapshot = await playerRef.get();
+    let prev = 0;
+    if (snapshot.exists) prev = snapshot.data().highscore || 0;
 
-// ---------- input: mobile buttons (hold support) ----------
-leftBtn.addEventListener('touchstart', e=>{ e.preventDefault(); player.vx = -player.speed; });
-leftBtn.addEventListener('touchend', e=>{ e.preventDefault(); player.vx = 0; });
-leftBtn.addEventListener('mousedown', ()=>player.vx = -player.speed);
-leftBtn.addEventListener('mouseup', ()=>player.vx = 0);
-leftBtn.addEventListener('mouseleave', ()=>player.vx = 0);
-
-rightBtn.addEventListener('touchstart', e=>{ e.preventDefault(); player.vx = player.speed; });
-rightBtn.addEventListener('touchend', e=>{ e.preventDefault(); player.vx = 0; });
-rightBtn.addEventListener('mousedown', ()=>player.vx = player.speed);
-rightBtn.addEventListener('mouseup', ()=>player.vx = 0);
-rightBtn.addEventListener('mouseleave', ()=>player.vx = 0);
-
-// ---------- UI hookup ----------
-startBtn.addEventListener('click', startGame);
-const playAgainBtn = document.getElementById('playAgain');
-if(playAgainBtn) playAgainBtn.addEventListener('click', startGame);
-
-// small helper to create the initial player object (used on reset)
-function makePlayer(){
-  return {
-    x: W/2 - 22,
-    y: H - 80,
-    size: 44,
-    vx: 0,
-    speed: 4,
-    maxOutMargin: 22
-  };
+    if (score > prev){
+      await playerRef.set({
+        email: user.email,
+        gamerName: gamerName,
+        highscore: score
+      }, { merge: true });
+    }
+    gameMsg.textContent = 'Score saved!';
+    loadLeaderboard(); // refresh
+  } catch (err){
+    gameMsg.textContent = 'Save failed: ' + err.message;
+  }
 }
 
-// ---------- init ----------
-scoreDisplay.textContent = '0';
-multBadge.classList.add('hidden
+// ----------------- LEADERBOARD -----------------
+async function loadLeaderboard(){
+  try {
+    const snap = await db.collection('players')
+      .orderBy('highscore','desc')
+      .limit(10)
+      .get();
+
+    leaderboardEl.innerHTML = '';
+    let rank = 1;
+    snap.forEach(doc=>{
+      const data = doc.data();
+      const li = document.createElement('li');
+      li.innerHTML = `<div><strong>${rank}. ${escapeHtml(data.gamerName || 'Unknown')}</strong><div class="meta">${escapeHtml(data.email || '')}</div></div><div>${data.highscore || 0}</div>`;
+      leaderboardEl.appendChild(li);
+      rank++;
+    });
+
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+// escape simple HTML
+function escapeHtml(s){ if(!s) return ''; return String(s).replace(/[&<>"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
+
+// ----------------- PAGE HOOKUPS -----------------
+document.getElementById('btnSignUp').addEventListener('click', window.signUp);
+document.getElementById('btnLogin').addEventListener('click', window.login);
+document.getElementById('btnLogout')?.addEventListener('click', window.logout);
+document.getElementById('btnSetName').addEventListener('click', window.setGamerName);
+document.getElementById('btnStart').addEventListener('click', window.startGame);
+
+// load leaderboard on start (shows zeros until players exist)
+loadLeaderboard();
