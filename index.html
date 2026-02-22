@@ -1,160 +1,76 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
-  <title>Cloud Dodge ☁️</title>
-  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Exo+2:wght@300;400;700;900&display=swap" rel="stylesheet"/>
-  <link rel="stylesheet" href="style.css"/>
-
-  <!-- Firebase SDKs -->
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Cloud Dodge — Cloud Game</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
-<!-- Background star canvas -->
-<canvas id="bgCanvas"></canvas>
+  <header>
+    <h1>☁️ Cloud Dodge</h1>
+    <p class="sub">Dodge falling blocks • Save high scores to the cloud</p>
+  </header>
 
-<!-- ════════════ AUTH SCREEN ════════════ -->
-<div id="authScreen" class="screen">
-  <div class="card">
-    <div class="logo">☁️ CLOUD<br><span>DODGE</span></div>
-    <div class="logo-sub">Survive the storm</div>
-
-    <div class="tabs">
-      <button class="tab-btn active" id="tabLogin" onclick="switchTab('login')">Login</button>
-      <button class="tab-btn" id="tabRegister" onclick="switchTab('register')">Register</button>
-    </div>
-
-    <div id="formLogin">
-      <div class="input-group">
-        <label>Email</label>
-        <input id="loginEmail" type="email" placeholder="pilot@sky.com" autocomplete="email"/>
+  <main>
+    <!-- AUTH AREA -->
+    <section id="authCard" class="card">
+      <h2>Sign up / Login</h2>
+      <input id="email" type="email" placeholder="Email" autocomplete="username" />
+      <input id="password" type="password" placeholder="Password" autocomplete="current-password" />
+      <div class="row">
+        <button id="btnSignUp">Create account</button>
+        <button id="btnLogin">Login</button>
       </div>
-      <div class="input-group">
-        <label>Password</label>
-        <input id="loginPass" type="password" placeholder="••••••••" autocomplete="current-password"/>
+      <p id="authMsg" class="muted"></p>
+    </section>
+
+    <!-- GAMER NAME ENTRY (hidden until login) -->
+    <section id="nameCard" class="card" style="display:none;">
+      <h2>Welcome</h2>
+      <p id="welcomeEmail" class="muted"></p>
+      <input id="gamerName" type="text" placeholder="Choose a gamer name (shown on leaderboard)" />
+      <div class="row">
+        <button id="btnSetName">Set Name</button>
+        <button id="btnLogout">Logout</button>
       </div>
-      <button class="btn btn-primary" onclick="doLogin()">🚀 Take Off</button>
-    </div>
+    </section>
 
-    <div id="formRegister" class="hidden">
-      <div class="input-group">
-        <label>Pilot Name</label>
-        <input id="regName" type="text" placeholder="SkyAce99" maxlength="20" autocomplete="username"/>
+    <!-- GAME AREA -->
+    <section id="gameCard" class="card" style="display:none;">
+      <div class="game-top-row">
+        <div class="score-box">Score: <span id="scoreDisplay">0</span></div>
+        <button id="btnStart" class="accent">Start</button>
       </div>
-      <div class="input-group">
-        <label>Email</label>
-        <input id="regEmail" type="email" placeholder="pilot@sky.com" autocomplete="email"/>
+
+      <canvas id="gameCanvas" width="360" height="480" aria-label="Game canvas"></canvas>
+
+      <!-- Mobile controls -->
+      <div id="mobileControls">
+        <button id="leftBtn">⬅</button>
+        <button id="rightBtn">➡</button>
       </div>
-      <div class="input-group">
-        <label>Password</label>
-        <input id="regPass" type="password" placeholder="min 6 chars" autocomplete="new-password"/>
-      </div>
-      <button class="btn btn-primary" onclick="doRegister()">🎮 Create Pilot</button>
-    </div>
 
-    <p id="authMsg" class="status-msg"></p>
-  </div>
-</div>
+      <p id="gameMsg" class="muted"></p>
+    </section>
 
-<!-- ════════════ NAV (shown after login) ════════════ -->
-<nav id="gameNav" class="hidden">
-  <button class="nav-btn active" id="navPlay" onclick="showScreen('game')">
-    <span>🎮</span>Play
-  </button>
-  <button class="nav-btn" id="navLB" onclick="showScreen('leaderboard')">
-    <span>🏆</span>Scores
-  </button>
-</nav>
+    <!-- LEADERBOARD -->
+    <section id="boardCard" class="card leaderboard-card">
+      <h2>🏆 Leaderboard</h2>
+      <ol id="leaderboard"></ol>
+      <p class="muted small">Top players (email shown for verification)</p>
+    </section>
+  </main>
 
-<!-- Profile Badge -->
-<div id="profileBadge" class="hidden">
-  <span id="profileName"></span>
-  <button id="logoutBtn" onclick="doLogout()">Exit</button>
-</div>
+  <footer class="foot muted">Built with Firebase • Hosted on GitHub Pages</footer>
 
-<!-- ════════════ GAME SCREEN ════════════ -->
-<div id="gameScreen" class="screen hidden" style="padding-top: 46px;">
-  <!-- HUD -->
-  <div id="hud">
-    <div class="hud-stat">
-      <div class="hud-label">Score</div>
-      <div class="hud-value" id="hudScore">0</div>
-    </div>
-    <div class="hud-stat">
-      <div class="hud-label">Best</div>
-      <div class="hud-value" id="hudBest">0</div>
-    </div>
-    <div class="hud-stat">
-      <div class="hud-label">Combo</div>
-      <div class="hud-value combo" id="hudCombo">x1</div>
-    </div>
-    <div class="hud-stat">
-      <div id="diffBadge" class="easy">EASY</div>
-    </div>
-  </div>
+  <!-- Firebase compat SDKs (works with this script style) -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 
-  <!-- Canvas -->
-  <div id="canvasWrap">
-    <canvas id="gameCanvas"></canvas>
-
-    <!-- Start Overlay -->
-    <div id="startOverlay" class="overlay">
-      <div class="overlay-title ready">READY?</div>
-      <div style="font-size:0.8rem; color: rgba(180,220,255,0.6); text-align:center; line-height:1.8; font-weight:300;">
-        Dodge the storm clouds<br/>
-        Collect lightning ⚡ for points<br/>
-        Survive as long as you can!
-      </div>
-      <div class="overlay-btns">
-        <button class="btn btn-primary" onclick="startGame()">🚀 Start Flying</button>
-      </div>
-    </div>
-
-    <!-- Game Over Overlay -->
-    <div id="gameOverOverlay" class="overlay hidden">
-      <div class="overlay-title go">GAME OVER</div>
-      <div id="newBestMsg" class="new-best hidden">✨ NEW BEST SCORE! ✨</div>
-      <div class="overlay-score">
-        <span class="label">Your Score</span>
-        <span id="goScore">0</span>
-      </div>
-      <div class="overlay-score">
-        <span class="label">Personal Best</span>
-        <span id="goBest">0</span>
-      </div>
-      <div class="overlay-btns">
-        <button class="btn btn-primary" onclick="startGame()">🔄 Play Again</button>
-        <button class="btn btn-ghost" onclick="showScreen('leaderboard')">🏆 Leaderboard</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Mobile controls -->
-  <div id="mobileControls">
-    <button class="ctrl-btn" id="leftBtn">◀</button>
-    <div class="ctrl-btn center-info" style="font-size:0.45rem;">
-      ⬅ / ➡ or<br/>arrow keys
-    </div>
-    <button class="ctrl-btn" id="rightBtn">▶</button>
-  </div>
-</div>
-
-<!-- ════════════ LEADERBOARD SCREEN ════════════ -->
-<div id="leaderboardScreen" class="screen hidden" style="padding-top: 46px;">
-  <div class="card">
-    <div class="lb-title">🏆 HALL OF FAME</div>
-    <div id="lbList" class="lb-list">
-      <div class="spinner"></div>
-    </div>
-    <button class="btn btn-ghost" style="margin-top:16px;" onclick="showScreen('game')">← Back to Game</button>
-  </div>
-</div>
-
-<script src="script.js"></script>
+  <!-- Main script -->
+  <script src="script.js"></script>
 </body>
 </html>
-
