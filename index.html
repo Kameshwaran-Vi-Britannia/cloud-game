@@ -1,38 +1,44 @@
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="en">
 <head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Cloud Dodge</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-  <link rel="stylesheet" href="style.css">
-
-  <!-- Firebase -->
+  <link rel="stylesheet" href="style.css" />
+  <!-- Firebase compat -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-
 </head>
 <body>
+  <header class="topbar">
+    <div class="brand">☁️ Cloud Dodge</div>
+    <div class="hud">
+      <div class="score-wrap">Score: <span id="scoreDisplay">0</span></div>
+      <div class="mult-wrap hidden" id="multBadge">×2!</div>
+      <button id="startBtn" class="btn small">Start Game</button>
+    </div>
+  </header>
 
-  <div class="game-title">☁️ Cloud Dodge</div>
+  <main class="main">
+    <div class="canvas-wrap">
+      <canvas id="gameCanvas" aria-label="Cloud Dodge canvas"></canvas>
+      <div id="gameOver" class="overlay hidden">
+        <div class="gameover-card">
+          <div class="gameover-title">GAME OVER</div>
+          <div class="final">Your Score: <strong id="finalScore">0</strong></div>
+          <button id="playAgain" class="btn">Play Again</button>
+        </div>
+      </div>
+    </div>
 
-  <div class="score-area">
-    <span id="scoreDisplay">0</span>
-    <button id="startBtn">Start Game</button>
-  </div>
+    <div class="controls-row">
+      <button id="leftBtn" class="btn control">⬅</button>
+      <button id="rightBtn" class="btn control">➡</button>
+    </div>
+  </main>
 
-  <canvas id="gameCanvas"></canvas>
-
-  <div id="gameOverScreen" class="game-over hidden">
-    <div class="game-over-text">GAME OVER</div>
-    <div class="final-score">Your Score: <span id="finalScore"></span></div>
-    <button onclick="startGame()">Play Again</button>
-  </div>
-
-  <div class="controls">
-    <button id="leftBtn">⬅</button>
-    <button id="rightBtn">➡</button>
-  </div>
+  <footer class="foot">Built with Firebase • Hosted on GitHub Pages</footer>
 
   <script src="script.js"></script>
 </body>
